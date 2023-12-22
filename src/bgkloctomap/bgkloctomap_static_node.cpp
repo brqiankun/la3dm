@@ -61,6 +61,7 @@ int main(int argc, char **argv) {
     nh.param<float>("prior_A", prior_A, prior_A);
     nh.param<float>("prior_B", prior_B, prior_B);
 
+    std::printf("----------------bgkloctomap_static_node----------------\n");
     ROS_INFO_STREAM("Parameters:" << std::endl <<
             "dir: " << dir << std::endl <<
             "prefix: " << prefix << std::endl <<
@@ -83,7 +84,8 @@ int main(int argc, char **argv) {
             "prior_B: " << prior_B
             );
 
-    la3dm::BGKLOctoMap map(resolution, block_depth, sf2, ell, free_thresh, occupied_thresh, var_thresh, prior_A, prior_B);
+    la3dm::BGKLOctoMap map(resolution, block_depth, sf2, ell, free_thresh, 
+                           occupied_thresh, var_thresh, prior_A, prior_B);
 
     ros::Time start = ros::Time::now();
     for (int scan_id = 1; scan_id <= scan_num; ++scan_id) {
@@ -91,6 +93,7 @@ int main(int argc, char **argv) {
         la3dm::point3f origin;
         std::string filename(dir + "/" + prefix + "_" + std::to_string(scan_id) + ".pcd");
         load_pcd(filename, origin, cloud);
+        std::printf("origin_%d : x: %f, y: %f, z: %f \n", scan_id, origin.x(), origin.y(), origin.z());
 
         map.insert_pointcloud(cloud, origin, resolution, free_resolution, max_range);
         ROS_INFO_STREAM("Scan " << scan_id << " done");
@@ -128,7 +131,7 @@ int main(int argc, char **argv) {
     // }
     // ray_pub.publish();
 
-    ///////// Publish Map /////////////////////
+    ///////// Publish Map /////////////////////  visual
     la3dm::MarkerArrayPub m_pub(nh, map_topic, resolution);
     la3dm::MarkerArrayPub m_pub2(nh, map_topic2, resolution);
     if (min_z == max_z) {
@@ -138,7 +141,7 @@ int main(int argc, char **argv) {
         max_z = lim_max.z();
     }
 
-     for (auto it = map.begin_leaf(); it != map.end_leaf(); ++it){
+    for (auto it = map.begin_leaf(); it != map.end_leaf(); ++it) {
         la3dm::point3f p = it.get_loc();
 
         if (it.get_node().get_state() == la3dm::State::OCCUPIED) {
@@ -149,8 +152,7 @@ int main(int argc, char **argv) {
                 for (auto n = pruned.cbegin(); n < pruned.cend(); ++n)
                     m_pub.insert_point3d(n->x(), n->y(), n->z(), min_z, max_z, map.get_resolution());
             }
-        }
-        else if (it.get_node().get_state() == la3dm::State::FREE) {
+        } else if (it.get_node().get_state() == la3dm::State::FREE) {
             if (original_size) {
                 m_pub2.insert_point3d(p.x(), p.y(), p.z(), min_z, max_z, it.get_size(), it.get_node().get_prob());
             } else {

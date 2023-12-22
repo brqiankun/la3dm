@@ -63,7 +63,7 @@ Improving Obstacle Boundary Representations in Predictive Occupancy Mapping ([PD
 }
 ```
 
-Learning-Aided 3-D Occupancy Mapping with Bayesian Generalized Kernel Inference ([PDF](https://ieeexplore.ieee.org/stamp/stamp.jsp?tp=&arnumber=8713569)) - describes the BGKOctoMap and BGKOctoMap-L approaches originally included in the LA3DM library.
+Learning-Aided 3-D Occupancy Mapping with Bayesian Generalized Kernel Inference ([PDF](https://ieeexplore.ieee.org/stamp/stamp.jsp?tp=&arnumber=8713569)) - describes the BGKOctoMap and **BGKOctoMap-L** approaches originally included in the LA3DM library.
 ```
 @article{Doherty2019,
   doi = {10.1109/tro.2019.2912487},

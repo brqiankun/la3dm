@@ -17,7 +17,7 @@
 
     <arg name="prefix" default="$(arg dataset)"/>
 
-    <arg name="method_config" value="$(find la3dm)/config/methods"/>
+    <arg name="method_config" value="$(find la3dm)/config/methods/"/>
     <arg name="data_config" value="$(find la3dm)/config/datasets/"/>
     
     <!--Start RVIZ-->

@@ -5,9 +5,11 @@
 #include <pcl/filters/voxel_grid.h>
 #include "markerarray_pub.h"
 #include "gpoctomap.h"
+#include <dbg.h>
 
 tf::TransformListener *listener;
-std::string frame_id("/map");
+std::string frame_id("camera_init");
+std::string child_frame_id("/aft_mapped");
 la3dm::GPOctoMap *map;
 
 la3dm::MarkerArrayPub *m_pub_occ, *m_pub_free;
@@ -46,8 +48,8 @@ void cloudHandler(const sensor_msgs::PointCloud2ConstPtr &cloud) {
     
     tf::StampedTransform transform;
     try {
-        listener->waitForTransform(frame_id, cloud->header.frame_id, cloud->header.stamp, ros::Duration(5.0));
-        listener->lookupTransform(frame_id, cloud->header.frame_id, cloud->header.stamp, transform); //ros::Time::now() -- Don't use this because processing time delay breaks it
+        listener->waitForTransform(frame_id, child_frame_id, cloud->header.stamp, ros::Duration(5.0));
+        listener->lookupTransform(frame_id, child_frame_id, cloud->header.stamp, transform); //ros::Time::now() -- Don't use this because processing time delay breaks it
     } catch (tf::TransformException ex) {
         ROS_ERROR("%s", ex.what());
         return;
@@ -58,8 +60,8 @@ void cloudHandler(const sensor_msgs::PointCloud2ConstPtr &cloud) {
     tf::Vector3 translation = transform.getOrigin();
     tf::Quaternion orientation = transform.getRotation();
 
-    if (first || orientation.angleShortestPath(last_orientation) > orientation_change_thresh || translation.distance(last_position) > position_change_thresh) 
-    {
+    if (first || orientation.angleShortestPath(last_orientation) > orientation_change_thresh || 
+        translation.distance(last_position) > position_change_thresh) {
         ROS_INFO_STREAM("Cloud received");
         
         last_position = translation;
@@ -67,12 +69,14 @@ void cloudHandler(const sensor_msgs::PointCloud2ConstPtr &cloud) {
         origin.x() = (float) translation.x();
         origin.y() = (float) translation.y();
         origin.z() = (float) translation.z();
+        std::printf("origin.x: %f, origin.y: %f, origin.z: %f\n", origin.x(), origin.y(), origin.z());
 
-        sensor_msgs::PointCloud2 cloud_map;
-        pcl_ros::transformPointCloud(frame_id, *cloud, cloud_map, *listener);
+        // sensor_msgs::PointCloud2 cloud_map;
+        //                           target_frame, cloud_in, cloud_out, tf_listener transform a pointcloud in a given target TF frame using a TransformListener.
+        // pcl_ros::transformPointCloud(frame_id, *cloud, cloud_map, *listener);    // ??? 里程计发送的点云已经完成位姿变换
 
         la3dm::PCLPointCloud::Ptr pcl_cloud (new la3dm::PCLPointCloud());
-        pcl::fromROSMsg(cloud_map, *pcl_cloud);
+        pcl::fromROSMsg(*cloud, *pcl_cloud);
 
         //downsample for faster mapping
         la3dm::PCLPointCloud filtered_cloud;
@@ -81,6 +85,7 @@ void cloudHandler(const sensor_msgs::PointCloud2ConstPtr &cloud) {
         filterer.setLeafSize(ds_resolution, ds_resolution, ds_resolution);
         filterer.filter(filtered_cloud);
 
+        dbg(filtered_cloud.size());
         if(filtered_cloud.size() > 5){
             map->insert_pointcloud(filtered_cloud, origin, (float) resolution, (float) free_resolution, (float) max_range);
         }
@@ -91,8 +96,7 @@ void cloudHandler(const sensor_msgs::PointCloud2ConstPtr &cloud) {
     }
 
 
-    if (updated) 
-    {
+    if (updated) {
         ros::Time start2 = ros::Time::now();
 
         m_pub_occ->clear();
@@ -103,36 +107,24 @@ void cloudHandler(const sensor_msgs::PointCloud2ConstPtr &cloud) {
             la3dm::point3f p = it.get_loc();
 
             if (it.get_node().get_state() == la3dm::State::OCCUPIED) {
-                if (original_size) 
-                {
+                if (original_size) {
                     m_pub_occ->insert_point3d(p.x(), p.y(), p.z(), min_z, max_z, it.get_size());
-                } 
-                else 
-                {
+                } else {
                     auto pruned = it.get_pruned_locs();
-                    for (auto n = pruned.cbegin(); n < pruned.cend(); ++n) 
-                    {
+                    for (auto n = pruned.cbegin(); n < pruned.cend(); ++n) {
                         m_pub_occ->insert_point3d(n->x(), n->y(), n->z(), min_z, max_z, map->get_resolution());
                     }
                 }
-            }
-            else if(it.get_node().get_state() == la3dm::State::FREE)
-            {
-                if (original_size) 
-                {
+            } else if (it.get_node().get_state() == la3dm::State::FREE) {
+                if (original_size) {
                     m_pub_free->insert_point3d(p.x(), p.y(), p.z(), min_z, max_z, it.get_size(), it.get_node().get_prob());
-                } 
-                else 
-                {
+                } else {
                     auto pruned = it.get_pruned_locs();
-                    for (auto n = pruned.cbegin(); n < pruned.cend(); ++n) 
-                    {
+                    for (auto n = pruned.cbegin(); n < pruned.cend(); ++n) {
                         m_pub_free->insert_point3d(n->x(), n->y(), n->z(), min_z, max_z, map->get_resolution(), it.get_node().get_prob());
                     }
                 }
-                
             }
-            
         }
         updated = false;
 
@@ -140,15 +132,16 @@ void cloudHandler(const sensor_msgs::PointCloud2ConstPtr &cloud) {
         m_pub_free->publish();
 
         ros::Time end2 = ros::Time::now();
-        ROS_INFO_STREAM("One map published in " << (end2 - start2).toSec() << "s");
+        ROS_INFO_STREAM("One map published in " << (end2 - start2).toNSec() << "nano second");
     }
+    first = false;
 }
 
 int main(int argc, char **argv) {
     ros::init(argc, argv, "gpoctomap_server");
     ros::NodeHandle nh("~");
     //incoming pointcloud topic, this could be put into the .yaml too
-    std::string cloud_topic("/velodyne_points");
+    std::string cloud_topic("/velodyne_cloud_registered");
 
     //Universal parameters
     nh.param<std::string>("topic", map_topic_occ, map_topic_occ);
@@ -193,7 +186,8 @@ int main(int argc, char **argv) {
             "original_size: " << original_size
             );
 
-    map = new la3dm::GPOctoMap(resolution, block_depth, sf2, ell, noise, l, min_var, max_var, max_known_var, free_thresh, occupied_thresh);
+    map = new la3dm::GPOctoMap(resolution, block_depth, sf2, ell, noise, l, min_var, 
+                               max_var, max_known_var, free_thresh, occupied_thresh);
     
     ros::Subscriber point_sub = nh.subscribe<sensor_msgs::PointCloud2>(cloud_topic, 1, cloudHandler);
     m_pub_occ = new la3dm::MarkerArrayPub(nh, map_topic_occ, resolution);
@@ -201,8 +195,7 @@ int main(int argc, char **argv) {
 
     listener = new tf::TransformListener();
     
-    while(ros::ok())
-    {
+    while(ros::ok()) {
     	ros::spin();
     }
 
