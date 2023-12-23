@@ -3,7 +3,7 @@
     <!-- Sets up an la3dm node with parameters specified by args -->
     <!-- See la3dm/config/methods/bgkoctomap.yaml for config parameters -->
     <arg name="rviz" default="true" />
-    <arg name="method" default="bgklvoctomap"/>
+    <arg name="method" default="gpoctomap"/>
 
     <!-- 
         Choose world:

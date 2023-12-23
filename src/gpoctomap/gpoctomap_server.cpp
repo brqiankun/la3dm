@@ -48,6 +48,7 @@ void cloudHandler(const sensor_msgs::PointCloud2ConstPtr &cloud) {
     
     tf::StampedTransform transform;
     try {
+        dbg("51");
         listener->waitForTransform(frame_id, child_frame_id, cloud->header.stamp, ros::Duration(5.0));
         listener->lookupTransform(frame_id, child_frame_id, cloud->header.stamp, transform); //ros::Time::now() -- Don't use this because processing time delay breaks it
     } catch (tf::TransformException ex) {
@@ -93,6 +94,10 @@ void cloudHandler(const sensor_msgs::PointCloud2ConstPtr &cloud) {
         ros::Time end = ros::Time::now();
         ROS_INFO_STREAM("One cloud finished in " << (end - start).toSec() << "s");
         updated = true;
+    } else {
+        dbg(orientation.angleShortestPath(last_orientation));
+        dbg(translation.distance(last_position));
+        dbg(first);
     }
 
 

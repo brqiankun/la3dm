@@ -113,6 +113,7 @@ int main(int argc, char **argv) {
         max_z = lim_max.z();
     }
 
+    ros::Time start1 = ros::Time::now();
     for (auto it = map.begin_leaf(); it != map.end_leaf(); ++it) {
         la3dm::point3f p = it.get_loc();
         
@@ -139,6 +140,9 @@ int main(int argc, char **argv) {
 
     m_pub.publish();
     m_pub2.publish();
+
+    ros::Time end1 = ros::Time::now();
+    ROS_INFO_STREAM("one map published in " << (end1 - start1).toNSec() << "nano second");
     ros::spin();
 
     return 0;
