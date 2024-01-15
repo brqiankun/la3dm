@@ -7,20 +7,20 @@
     <!-- <node pkg="tf" type="static_transform_publisher" name="static_transform_publisher" args="0 0 0 0 0 0 odom map 50"/> -->
     <!-- <node pkg="tf" type="static_transform_publisher" name="static_transform_publisher2" args="0 0 0 0 0 0 base_link velodyne 50"/> -->
     
-    <arg name="dataset" default="sim_structured"/>
+    <arg name="dataset" default="br_unstructured"/>
     <!-- Start RVIZ-->
     <node name="rviz_map" pkg="rviz" type="rviz"
         args="-d $(find la3dm)/rviz/$(arg dataset).rviz">
     </node>
     <!-- <node name="rviz_map" pkg="rviz" type="rviz"/> -->
 
-    <param name="/use_sim_time" value="true"/>
+    <!-- <param name="/use_sim_time" value="true"/> -->
 
     <arg name="method" default="gpoctomap"/>
     <arg name="method_config" value="$(find la3dm)/config/methods"/>
 
     <!--Start the LA3DM node -->
-    <node pkg="la3dm" type="$(arg method)_server" name="la3dm_server" output="screen">
+    <node pkg="la3dm" type="$(arg method)_server_legoloam" name="la3dm_server" output="screen">
 
         <!-- Load method configuration from file -->
         <rosparam file="$(arg method_config)/$(arg method)_large_map.yaml" command="load"/>

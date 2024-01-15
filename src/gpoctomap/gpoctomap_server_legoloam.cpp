@@ -1,15 +1,18 @@
 #include <string>
 #include <iostream>
+#include <vector>
+
 #include <ros/ros.h>
 #include <pcl_ros/transforms.h>
 #include <pcl/filters/voxel_grid.h>
+#include <pcl/filters/filter.h>
 #include "markerarray_pub.h"
 #include "gpoctomap.h"
 #include <dbg.h>
 
 tf::TransformListener *listener;
 std::string frame_id("camera_init");
-std::string child_frame_id("/aft_mapped");
+std::string child_frame_id("base_link");
 la3dm::GPOctoMap *map;
 
 la3dm::MarkerArrayPub *m_pub_occ, *m_pub_free;
@@ -17,8 +20,8 @@ la3dm::MarkerArrayPub *m_pub_occ, *m_pub_free;
 tf::Vector3 last_position;
 tf::Quaternion last_orientation;
 bool first = true;
-double position_change_thresh = 0.1;
-double orientation_change_thresh = 0.2;
+double position_change_thresh = 0.01;
+double orientation_change_thresh = 0.02;
 bool updated = false;
 
 //Universal parameters
@@ -71,12 +74,20 @@ void cloudHandler(const sensor_msgs::PointCloud2ConstPtr &cloud) {
         origin.z() = (float) translation.z();
         std::printf("origin.x: %f, origin.y: %f, origin.z: %f\n", origin.x(), origin.y(), origin.z());
 
-        // sensor_msgs::PointCloud2 cloud_map;
-        //                           target_frame, cloud_in, cloud_out, tf_listener transform a pointcloud in a given target TF frame using a TransformListener.
-        // pcl_ros::transformPointCloud(frame_id, *cloud, cloud_map, *listener);    // ??? 里程计发送的点云已经完成位姿变换
+        sensor_msgs::PointCloud2 cloud_map;
+                                //   target_frame, cloud_in, cloud_out, tf_listener transform a pointcloud in a given target TF frame using a TransformListener.
+        pcl_ros::transformPointCloud(frame_id, *cloud, cloud_map, *listener);    // ??? 里程计发送的点云已经完成位姿变换
 
         la3dm::PCLPointCloud::Ptr pcl_cloud (new la3dm::PCLPointCloud());
-        pcl::fromROSMsg(*cloud, *pcl_cloud);
+        pcl::fromROSMsg(cloud_map, *pcl_cloud);
+        std::printf("before remove nan point: ");
+        dbg(pcl_cloud->size());
+        dbg(pcl_cloud->is_dense);
+        pcl_cloud->is_dense = false;
+        std::vector<int> indices;
+        pcl::removeNaNFromPointCloud(*pcl_cloud, *pcl_cloud, indices);
+        std::printf("after remove nan point: ");
+        dbg(pcl_cloud->size());
 
         //downsample for faster mapping
         la3dm::PCLPointCloud filtered_cloud;
@@ -85,13 +96,15 @@ void cloudHandler(const sensor_msgs::PointCloud2ConstPtr &cloud) {
         filterer.setLeafSize(ds_resolution, ds_resolution, ds_resolution);
         filterer.filter(filtered_cloud);
 
-        dbg(filtered_cloud.size());
+        
         if(filtered_cloud.size() > 5){
             map->insert_pointcloud(filtered_cloud, origin, (float) resolution, (float) free_resolution, (float) max_range);
+        } else {
+            dbg(filtered_cloud.size());
         }
 
         ros::Time end = ros::Time::now();
-        ROS_INFO_STREAM("One cloud finished in " << (end - start).toSec() << "s");
+        ROS_INFO_STREAM("One cloud finished in " << (end - start).toSec() << " s");
         updated = true;
     } else {
         dbg(orientation.angleShortestPath(last_orientation));
@@ -136,7 +149,7 @@ void cloudHandler(const sensor_msgs::PointCloud2ConstPtr &cloud) {
         m_pub_free->publish();
 
         ros::Time end2 = ros::Time::now();
-        ROS_INFO_STREAM("One map published in " << (end2 - start2).toNSec() << "nano second");
+        ROS_INFO_STREAM("One map published in " << (end2 - start2).toNSec() << " nano second\n\n");
     }
     first = false;
 }
@@ -145,7 +158,7 @@ int main(int argc, char **argv) {
     ros::init(argc, argv, "gpoctomap_server");
     ros::NodeHandle nh("~");
     //incoming pointcloud topic, this could be put into the .yaml too
-    std::string cloud_topic("/velodyne_cloud_registered");
+    std::string cloud_topic("/full_cloud_projected");
 
     //Universal parameters
     nh.param<std::string>("topic", map_topic_occ, map_topic_occ);
@@ -171,7 +184,7 @@ int main(int argc, char **argv) {
     nh.param<double>("max_known_var", max_known_var, max_known_var);
 
     ROS_INFO_STREAM("Parameters:" << std::endl <<
-            "topic: " << map_topic_occ << std::endl <<
+            "topic: " << cloud_topic << std::endl <<
             "max_range: " << max_range << std::endl <<
             "resolution: " << resolution << std::endl <<
             "block_depth: " << block_depth << std::endl <<

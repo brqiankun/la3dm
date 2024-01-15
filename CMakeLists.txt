@@ -215,6 +215,12 @@ add_executable(gpoctomap_server
     src/gpoctomap/gpoctomap_server.cpp
 )
 
+add_executable(gpoctomap_server_legoloam
+    ${GP_SOURCE_FILES}
+    ${COMMON_SOURCE_FILES}
+    src/gpoctomap/gpoctomap_server_legoloam.cpp
+)
+
 ## Add cmake target dependencies of the executable/library
 ## as an example, message headers may need to be generated before nodes
 # add_dependencies(BGKOctoMap_node BGKOctoMap_generate_messages_cpp)
@@ -250,6 +256,10 @@ target_link_libraries(bgkoctomap_server
 
 target_link_libraries(gpoctomap_server
         ${catkin_LIBRARIES}
+)
+
+target_link_libraries(gpoctomap_server_legoloam
+       ${catkin_LIBRARIES}
 )
 
 link_directories(/usr/local/lib)
